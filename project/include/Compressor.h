@@ -48,22 +48,22 @@
 #define ROTATE_LEFT(x, n) (((x) << (n)) | ((x) >> (32-(n))))
 
 #define FF(a, b, c, d, x, s, ac) { \
-	          (a) += F ((b), (c), (d)) + (x) + ac; \
+	          (a) += F ((b), (c), (d)) + (x) + (uint32_t)ac; \
 	          (a) = ROTATE_LEFT ((a), (s)); \
 	          (a) += (b); }
 
 #define GG(a, b, c, d, x, s, ac) { \
-	          (a) += G ((b), (c), (d)) + (x) + ac; \
+	          (a) += G ((b), (c), (d)) + (x) + (uint32_t)ac; \
 	          (a) = ROTATE_LEFT ((a), (s)); \
 	          (a) += (b); }
 
 #define HH(a, b, c, d, x, s, ac) { \
-	          (a) += H ((b), (c), (d)) + (x) + ac; \
+	          (a) += H ((b), (c), (d)) + (x) + (uint32_t)ac; \
 	          (a) = ROTATE_LEFT ((a), (s)); \
 	          (a) += (b); }
 
 #define II(a, b, c, d, x, s, ac) { \
-	          (a) += I ((b), (c), (d)) + (x) + ac; \
+	          (a) += I ((b), (c), (d)) + (x) + (uint32_t)ac; \
 	          (a) = ROTATE_LEFT ((a), (s)); \
 	          (a) += (b); }
 
@@ -80,22 +80,22 @@ namespace zio
 		//------------------------------------------------------------------
 		constexpr int MD5_BLOCK_SIZE = 64;
 
-		constexpr uint64_t S11 = 7;
-		constexpr uint64_t S12 = 12;
-		constexpr uint64_t S13 = 17;
-		constexpr uint64_t S14 = 22;
-		constexpr uint64_t S21 = 5;
-		constexpr uint64_t S22 = 9;
-		constexpr uint64_t S23 = 14;
-		constexpr uint64_t S24 = 20;
-		constexpr uint64_t S31 = 4;
-		constexpr uint64_t S32 = 11;
-		constexpr uint64_t S33 = 16;
-		constexpr uint64_t S34 = 23;
-		constexpr uint64_t S41 = 6;
-		constexpr uint64_t S42 = 10;
-		constexpr uint64_t S43 = 15;
-		constexpr uint64_t S44 = 21;
+		constexpr uint32_t S11 = 7;
+		constexpr uint32_t S12 = 12;
+		constexpr uint32_t S13 = 17;
+		constexpr uint32_t S14 = 22;
+		constexpr uint32_t S21 = 5;
+		constexpr uint32_t S22 = 9;
+		constexpr uint32_t S23 = 14;
+		constexpr uint32_t S24 = 20;
+		constexpr uint32_t S31 = 4;
+		constexpr uint32_t S32 = 11;
+		constexpr uint32_t S33 = 16;
+		constexpr uint32_t S34 = 23;
+		constexpr uint32_t S41 = 6;
+		constexpr uint32_t S42 = 10;
+		constexpr uint32_t S43 = 15;
+		constexpr uint32_t S44 = 21;
 
 		class MD5
 		{
@@ -116,6 +116,8 @@ namespace zio
 				_state[1] = 0xefcdab89;
 				_state[2] = 0x98badcfe;
 				_state[3] = 0x10325476;
+
+				memset(_digest, 0, 16);
 			}
 
 			void Update(const uint8_t* input, const size_t size)
@@ -123,14 +125,15 @@ namespace zio
 				_finished = false;
 
 				/* Compute number of bytes mod 64 */
-				auto index = (uint64_t)((_count[0] >> 3) & 0x3f);
+				auto index = (uint32_t)((_count[0] >> 3) & 0x3f);
 
 				/* update number of bits */
-				if ((_count[0] += ((uint64_t)size << 3)) < ((uint64_t)size << 3))
+				_count[0] += ((uint32_t)size << 3);
+				if (_count[0] < ((uint32_t)size << 3))
 				{
-					_count[1]++;
+					++_count[1];
 				}
-				_count[1] += ((uint64_t)size >> 29);
+				_count[1] += ((uint32_t)size >> 29);
 
 				auto partLen = MD5_BLOCK_SIZE - index;
 				/* transform as many times as possible. */
@@ -167,9 +170,9 @@ namespace zio
 				}
 
 				uint8_t bits[8];
-				uint64_t oldState[4];
-				uint64_t oldCount[2];
-				uint64_t index, padLen;
+				uint32_t oldState[4];
+				uint32_t oldCount[2];
+				uint32_t index, padLen;
 
 				/* Save current state and count. */
 				memcpy(oldState, _state, 16);
@@ -179,7 +182,7 @@ namespace zio
 				_Encode(_count, bits, 8);
 
 				/* Pad out to 56 mod 64. */
-				index = (uint64_t)((_count[0] >> 3) & 0x3f);
+				index = (uint32_t)((_count[0] >> 3) & 0x3f);
 				constexpr int nR = MD5_BLOCK_SIZE - 8;
 				padLen = (index < nR) ? (nR - index) : (MD5_BLOCK_SIZE + nR - index);
 				Update(PADDING, padLen);
@@ -199,7 +202,7 @@ namespace zio
 
 			const uint8_t* Digest()
 			{
-				if (_finished)
+				if (!_finished)
 				{
 					Final();
 				}
@@ -208,7 +211,7 @@ namespace zio
 
 			std::string ToHexString(bool upperCase = false)
 			{
-				if (_finished)
+				if (!_finished)
 				{
 					Final();
 				}
@@ -222,11 +225,11 @@ namespace zio
 
 			void _Transform(const uint8_t block[MD5_BLOCK_SIZE])
 			{
-				uint64_t a = _state[0];
-				uint64_t b = _state[1];
-				uint64_t c = _state[2];
-				uint64_t d = _state[3];
-				uint64_t x[16];
+				uint32_t a = _state[0];
+				uint32_t b = _state[1];
+				uint32_t c = _state[2];
+				uint32_t d = _state[3];
+				uint32_t x[16];
 
 				_Decode(block, x, MD5_BLOCK_SIZE);
 
@@ -308,7 +311,7 @@ namespace zio
 				_state[3] += d;
 			}
 
-			void _Encode(const uint64_t* input, uint8_t* output, size_t length)
+			void _Encode(const uint32_t* input, uint8_t* output, size_t length)
 			{
 				for (size_t i = 0, j = 0; j < length; i++, j += 4)
 				{
@@ -319,12 +322,12 @@ namespace zio
 				}
 			}
 
-			void _Decode(const uint8_t* input, uint64_t* output, size_t length)
+			void _Decode(const uint8_t* input, uint32_t* output, size_t length)
 			{
 				for (size_t i = 0, j = 0; j < length; i++, j += 4)
 				{
-					output[i] = ((uint64_t)input[j]) | (((uint64_t)input[j + 1]) << 8) |
-						(((uint64_t)input[j + 2]) << 16) | (((uint64_t)input[j + 3]) << 24);
+					output[i] = ((uint32_t)input[j]) | (((uint32_t)input[j + 1]) << 8) |
+						(((uint32_t)input[j + 2]) << 16) | (((uint32_t)input[j + 3]) << 24);
 				}
 			}
 
@@ -358,13 +361,20 @@ namespace zio
 			}
 
 		private:
-			uint64_t _state[4];	/* state (ABCD) */
-			uint64_t _count[2];	/* number of bits, modulo 2^64 (low-order word first) */
+			uint32_t _state[4];	/* state (ABCD) */
+			uint32_t _count[2];	/* number of bits, modulo 2^64 (low-order word first) */
 			uint8_t _buffer[MD5_BLOCK_SIZE]; /* input buffer */
 			uint8_t _digest[16]; /* message digest */
 			bool _finished; /* calculate finished ? */
 
-			const uint8_t PADDING[MD5_BLOCK_SIZE] = { 0x80 };	/* padding for calculate */
+			/* padding for calculate */
+			const uint8_t PADDING[MD5_BLOCK_SIZE] = 
+			{ 
+				0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+				0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+				0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+				0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+			};	
 			const size_t BUFFER_SIZE = 1024;
 			const char HEX_LOWER_CASE[16] =
 			{
@@ -1312,6 +1322,147 @@ namespace zio
 			HANDLE      fHandle;
 			bool        bClosed;
 		};
+
+		/*
+		* @brief compress from raw to GZip
+		* @param infile: input raw file
+		* @param outfile: output GZip compressed file
+		* @return true if success, false if fail
+		*/
+		static bool GZipCompress(const std::string& infile, const std::string& outfile)
+		{
+
+			HANDLE ifHandle = CreateFileA(
+				infile.c_str(),
+				GENERIC_READ,
+				NULL,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			if (ifHandle == INVALID_HANDLE_VALUE)
+			{
+				return false;
+			}
+
+			DWORD dwFileSizeHigh;
+			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
+			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
+
+			const int BUFFER_SIZE = 1 << 20; //1MB
+			uint8_t* inputBuffer = new uint8_t[BUFFER_SIZE];
+			DWORD dwSize = 0;
+			uint64_t residue = ifSize;
+			Compressor compressor(outfile, Format::GZip, Mode::Write, false);
+			while (residue > 0)
+			{
+				(void)ReadFile(ifHandle, inputBuffer, BUFFER_SIZE, &dwSize, NULL);
+				residue -= dwSize;
+				compressor.Put(inputBuffer, dwSize);
+			}
+			compressor.Close();
+
+			CloseHandle(ifHandle);
+
+			delete[] inputBuffer;
+
+			return true;
+		}
+
+		/*
+		* @brief extract from GZip
+		* @param infile: input GZip file
+		* @param outfile: output decompressed file
+		* @return true if success, false if fail
+		*/
+		static bool GZip2Raw(const std::string& infile, const std::string& outfile)
+		{
+
+			HANDLE ifHandle = CreateFileA(
+				infile.c_str(),
+				GENERIC_READ,
+				NULL,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			if (ifHandle == INVALID_HANDLE_VALUE)
+			{
+				return false;
+			}
+
+			DWORD dwFileSizeHigh;
+			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
+			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
+
+			const int BUFFER_SIZE = 1 << 20; //1MB
+			uint8_t* inputBuffer = new uint8_t[BUFFER_SIZE];
+			DWORD dwSize = 0;
+			uint64_t residue = ifSize;
+			Compressor compressor(outfile, Format::GZip, Mode::Write, false);
+			while (residue > 0)
+			{
+				(void)ReadFile(ifHandle, inputBuffer, BUFFER_SIZE, &dwSize, NULL);
+				residue -= dwSize;
+				compressor.Put(inputBuffer, dwSize);
+			}
+			compressor.Close();
+
+			CloseHandle(ifHandle);
+
+			delete[] inputBuffer;
+
+			return true;
+		}
+
+		/*
+		* @brief compress from raw to ZStd
+		* @param infile: input raw file
+		* @param outfile: output ZStd compressed file
+		* @return true if success, false if fail
+		*/
+		static bool ZStdCompress(const std::string& infile, const std::string& outfile)
+		{
+
+			HANDLE ifHandle = CreateFileA(
+				infile.c_str(),
+				GENERIC_READ,
+				NULL,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			if (ifHandle == INVALID_HANDLE_VALUE)
+			{
+				return false;
+			}
+
+			DWORD dwFileSizeHigh;
+			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
+			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
+
+			const int BUFFER_SIZE = 1 << 20; //1MB
+			uint8_t* inputBuffer = new uint8_t[BUFFER_SIZE];
+			DWORD dwSize = 0;
+			uint64_t residue = ifSize;
+			Compressor compressor(outfile, Format::ZStd, Mode::Write, false);
+			while (residue > 0)
+			{
+				(void)ReadFile(ifHandle, inputBuffer, BUFFER_SIZE, &dwSize, NULL);
+				residue -= dwSize;
+				compressor.Put(inputBuffer, dwSize);
+			}
+			compressor.Close();
+
+			CloseHandle(ifHandle);
+
+			delete[] inputBuffer;
+
+			return true;
+		}
 
 		/*
 		* @brief convert from ZStd to GZip

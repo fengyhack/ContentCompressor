@@ -14,9 +14,9 @@ using namespace zio::compression;
 
 int main(int argc, char** argc)
 {
-    string path = "<XXX>.zst";
+    string outfile = "<XXX>.zst";
     auto format = Format::GZip;
-    Compressor cx(path, format, Mode::Write, true)
+    Compressor cx(outfile, format, Mode::Write, true)
     byte[] data = new byte[size];
     cx.Put(data, size);
     cx.Close();
@@ -33,6 +33,16 @@ int main(int argc, char** argc)
 
 
 
+## ZStdCompress ##
+
+ZStd compression
+
+
+
+## GZipCompress ##
+
+GZip compression
+
 
 
 ## ZExtract ##
@@ -44,4 +54,10 @@ Decompress from `ZStd` to binary
 ## ZConv ##
 
 Convert from `ZStd` to `GZip`
+
+
+
+# BinComp #
+
+Binary compare `bc <file1> <file2>`
 
