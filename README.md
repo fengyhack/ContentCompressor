@@ -45,19 +45,14 @@ GZip compression
 
 
 
-## ZExtract ##
+## ZStdExtract ##
 
 Decompress from `ZStd` to binary
 
 
 
-## ZConv ##
+## ZStd2GZip ##
 
 Convert from `ZStd` to `GZip`
 
-
-
-# BinComp #
-
-Binary compare `bc <file1> <file2>`
 
