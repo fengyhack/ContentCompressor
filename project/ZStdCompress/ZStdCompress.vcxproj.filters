@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Main.cpp">
+    <ClCompile Include="ZStdCompress.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -25,7 +25,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="ZConv.rc">
+    <ResourceCompile Include="ZStdCompress.rc">
       <Filter>资源文件</Filter>
     </ResourceCompile>
   </ItemGroup>

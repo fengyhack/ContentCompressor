@@ -21,6 +21,6 @@ int main(int argc, char** argv)
 		s2 = s2.substr(1, s2.length() - 2);
 	}
 
-	GZip2Raw(s1, s2);
+	GZipExtract(s1, s2);
 	return 0;
 }

@@ -37,6 +37,7 @@
 #include <igzip_lib.h> //isa-l gzip deflate
 #include <crc.h> //isa-l gzip crc
 #include <exception>
+#include <chrono>
 
 //----------------------------- MD5 Transform ------------------------------------
 
@@ -1371,12 +1372,12 @@ namespace zio
 		}
 
 		/*
-		* @brief extract from GZip
-		* @param infile: input GZip file
-		* @param outfile: output decompressed file
+		* @brief compress from raw to GZip
+		* @param infile: input raw file
+		* @param outfile: output GZip compressed file
 		* @return true if success, false if fail
 		*/
-		static bool GZip2Raw(const std::string& infile, const std::string& outfile)
+		static bool GZipCompressProfile(const std::string& infile, const std::string& outfile, double& bytesPerMs, double& compressRatio)
 		{
 
 			HANDLE ifHandle = CreateFileA(
@@ -1402,6 +1403,7 @@ namespace zio
 			DWORD dwSize = 0;
 			uint64_t residue = ifSize;
 			Compressor compressor(outfile, Format::GZip, Mode::Write, false);
+			auto start = std::chrono::system_clock::now();
 			while (residue > 0)
 			{
 				(void)ReadFile(ifHandle, inputBuffer, BUFFER_SIZE, &dwSize, NULL);
@@ -1409,11 +1411,40 @@ namespace zio
 				compressor.Put(inputBuffer, dwSize);
 			}
 			compressor.Close();
+			auto finish = std::chrono::system_clock::now();
+			auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
 
+			bytesPerMs = (double)ifSize / millisec.count();
+			compressRatio = (double)ifSize / compressor.FileSize();
 			CloseHandle(ifHandle);
 
 			delete[] inputBuffer;
 
+			return true;
+		}
+
+		/*
+		* @brief extract from GZip
+		* @param infile: input GZip file
+		* @param outfile: output decompressed file
+		* @return true if success, false if fail
+		*/
+		static bool GZipExtract(const std::string& infile, const std::string& outfile)
+		{
+
+			//TODO
+			return true;
+		}
+
+		/*
+		* @brief extract from GZip
+		* @param infile: input GZip file
+		* @param outfile: output decompressed file
+		* @return true if success, false if fail
+		*/
+		static bool GZipExtractProfile(const std::string& infile, const std::string& outfile, double& bytesPerMs)
+		{
+			//TODO
 			return true;
 		}
 
@@ -1460,6 +1491,233 @@ namespace zio
 			CloseHandle(ifHandle);
 
 			delete[] inputBuffer;
+
+			return true;
+		}
+
+		/*
+		* @brief compress from raw to ZStd
+		* @param infile: input raw file
+		* @param outfile: output ZStd compressed file
+		* @return true if success, false if fail
+		*/
+		static bool ZStdCompressProfile(const std::string& infile, const std::string& outfile, double& bytesPerMs, double& compressRatio)
+		{
+
+			HANDLE ifHandle = CreateFileA(
+				infile.c_str(),
+				GENERIC_READ,
+				NULL,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			if (ifHandle == INVALID_HANDLE_VALUE)
+			{
+				return false;
+			}
+
+			DWORD dwFileSizeHigh;
+			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
+			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
+
+			const int BUFFER_SIZE = 1 << 20; //1MB
+			uint8_t* inputBuffer = new uint8_t[BUFFER_SIZE];
+			DWORD dwSize = 0;
+			uint64_t residue = ifSize;
+			auto start = std::chrono::system_clock::now();
+			Compressor compressor(outfile, Format::ZStd, Mode::Write, false);
+			while (residue > 0)
+			{
+				(void)ReadFile(ifHandle, inputBuffer, BUFFER_SIZE, &dwSize, NULL);
+				residue -= dwSize;
+				compressor.Put(inputBuffer, dwSize);
+			}
+			compressor.Close();
+			auto finish = std::chrono::system_clock::now();
+			auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
+			
+			bytesPerMs = (double)ifSize / millisec.count();
+			compressRatio = (double)ifSize / compressor.FileSize();
+
+			CloseHandle(ifHandle);
+
+			delete[] inputBuffer;
+
+			return true;
+		}
+
+		/*
+		* @brief decompress ZStd file
+		* @param infile: input ZStd compressed file
+		* @param outfile: output decompressed file
+		* @return true if success, false if fail
+		*/
+		static bool ZStdExtract(const std::string& infile, const std::string& outfile)
+		{
+			HANDLE ifHandle = CreateFileA(
+				infile.c_str(),
+				GENERIC_READ,
+				NULL,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			HANDLE ofHandle = CreateFileA(
+				outfile.c_str(),
+				GENERIC_WRITE,
+				NULL,
+				NULL,
+				CREATE_ALWAYS,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			if (ifHandle == INVALID_HANDLE_VALUE || ofHandle == INVALID_HANDLE_VALUE)
+			{
+				return false;
+			}
+
+			DWORD dwFileSizeHigh;
+			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
+			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
+
+
+			size_t inputChunkSize = ZSTD_CStreamInSize();
+			size_t outputChunkSize = ZSTD_CStreamOutSize();
+			ZSTD_DCtx* dctx = ZSTD_createDCtx();
+			unsigned char* inputChunkBuffer = new unsigned char[inputChunkSize];
+			unsigned char* outputChunkBuffer = new unsigned char[outputChunkSize];
+
+			ZSTD_inBuffer zInput;
+			ZSTD_outBuffer zOutput;
+
+			zInput.src = inputChunkBuffer;
+			zInput.size = inputChunkSize;
+			zOutput.dst = outputChunkBuffer;
+			zOutput.size = outputChunkSize;
+
+			uint64_t residue = ifSize;
+			DWORD dwSize;
+			while (residue > 0)
+			{
+				(void)ReadFile(ifHandle, inputChunkBuffer, inputChunkSize, &dwSize, NULL);
+				if (dwSize == 0)
+				{
+					break;
+				}
+				residue -= dwSize;
+				if (dwSize < inputChunkSize)
+				{
+					//the last chunk
+					zInput.size = dwSize;
+				}
+				zInput.pos = 0;
+				zInput.pos = 0;
+				while (zInput.pos < zInput.size)
+				{
+					zOutput.pos = 0;
+					ZSTD_decompressStream(dctx, &zOutput, &zInput);
+					WriteFile(ofHandle, outputChunkBuffer, zOutput.pos, NULL, NULL);
+				}
+			}
+
+			FlushFileBuffers(ofHandle);
+			CloseHandle(ifHandle);
+			CloseHandle(ofHandle);
+			ZSTD_freeDCtx(dctx);
+			delete[] inputChunkBuffer;
+			delete[] outputChunkBuffer;
+
+			return true;
+		}
+
+		/*
+		* @brief decompress ZStd file
+		* @param infile: input ZStd compressed file
+		* @param outfile: output decompressed file
+		* @return true if success, false if fail
+		*/
+		static bool ZStdExtractProfile(const std::string& infile, const std::string& outfile, double& bytesPerMs)
+		{
+			HANDLE ifHandle = CreateFileA(
+				infile.c_str(),
+				GENERIC_READ,
+				NULL,
+				NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			HANDLE ofHandle = CreateFileA(
+				outfile.c_str(),
+				GENERIC_WRITE,
+				NULL,
+				NULL,
+				CREATE_ALWAYS,
+				FILE_ATTRIBUTE_NORMAL,
+				NULL);
+
+			if (ifHandle == INVALID_HANDLE_VALUE || ofHandle == INVALID_HANDLE_VALUE)
+			{
+				return false;
+			}
+
+			DWORD dwFileSizeHigh;
+			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
+			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
+
+
+			size_t inputChunkSize = ZSTD_CStreamInSize();
+			size_t outputChunkSize = ZSTD_CStreamOutSize();
+			ZSTD_DCtx* dctx = ZSTD_createDCtx();
+			unsigned char* inputChunkBuffer = new unsigned char[inputChunkSize];
+			unsigned char* outputChunkBuffer = new unsigned char[outputChunkSize];
+
+			ZSTD_inBuffer zInput;
+			ZSTD_outBuffer zOutput;
+
+			zInput.src = inputChunkBuffer;
+			zInput.size = inputChunkSize;
+			zOutput.dst = outputChunkBuffer;
+			zOutput.size = outputChunkSize;
+
+			uint64_t residue = ifSize;
+			DWORD dwSize;
+			auto start = std::chrono::system_clock::now();
+			while (residue > 0)
+			{
+				(void)ReadFile(ifHandle, inputChunkBuffer, inputChunkSize, &dwSize, NULL);
+				if (dwSize == 0)
+				{
+					break;
+				}
+				residue -= dwSize;
+				if (dwSize < inputChunkSize)
+				{
+					//the last chunk
+					zInput.size = dwSize;
+				}
+				zInput.pos = 0;
+				zInput.pos = 0;
+				while (zInput.pos < zInput.size)
+				{
+					zOutput.pos = 0;
+					ZSTD_decompressStream(dctx, &zOutput, &zInput);
+					WriteFile(ofHandle, outputChunkBuffer, zOutput.pos, NULL, NULL);
+				}
+			}
+			auto finish = std::chrono::system_clock::now();
+			auto millisec = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
+			bytesPerMs = (double)ifSize / millisec.count();
+
+			FlushFileBuffers(ofHandle);
+			CloseHandle(ifHandle);
+			CloseHandle(ofHandle);
+			ZSTD_freeDCtx(dctx);
+			delete[] inputChunkBuffer;
+			delete[] outputChunkBuffer;
 
 			return true;
 		}
@@ -1570,91 +1828,6 @@ namespace zio
 			delete[] zstInputChunkBuffer;
 			delete[] igzInputChunkBuffer;
 			delete[] igzOutputChunkBuffer;
-
-			return true;
-		}
-
-		/*
-		* @brief decompress ZStd file
-		* @param infile: input ZStd compressed file
-		* @param outfile: output decompressed file
-		* @return true if success, false if fail
-		*/
-		static bool ZStd2Raw(const std::string& infile, const std::string& outfile)
-		{
-			HANDLE ifHandle = CreateFileA(
-				infile.c_str(),
-				GENERIC_READ,
-				NULL,
-				NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
-
-			HANDLE ofHandle = CreateFileA(
-				outfile.c_str(),
-				GENERIC_WRITE,
-				NULL,
-				NULL,
-				CREATE_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL,
-				NULL);
-
-			if (ifHandle == INVALID_HANDLE_VALUE || ofHandle == INVALID_HANDLE_VALUE)
-			{
-				return false;
-			}
-
-			DWORD dwFileSizeHigh;
-			DWORD dwFileSizeLow = ::GetFileSize(ifHandle, &dwFileSizeHigh);
-			uint64_t ifSize = dwFileSizeLow | (((__int64)dwFileSizeHigh) << 32);
-
-
-			size_t inputChunkSize = ZSTD_CStreamInSize();
-			size_t outputChunkSize = ZSTD_CStreamOutSize();
-			ZSTD_DCtx* dctx = ZSTD_createDCtx();
-			unsigned char* inputChunkBuffer = new unsigned char[inputChunkSize];
-			unsigned char* outputChunkBuffer = new unsigned char[outputChunkSize];
-
-			ZSTD_inBuffer zInput;
-			ZSTD_outBuffer zOutput;
-
-			zInput.src = inputChunkBuffer;
-			zInput.size = inputChunkSize;
-			zOutput.dst = outputChunkBuffer;
-			zOutput.size = outputChunkSize;
-
-			uint64_t residue = ifSize;
-			DWORD dwSize;
-			while (residue > 0)
-			{
-				(void)ReadFile(ifHandle, inputChunkBuffer, inputChunkSize, &dwSize, NULL);
-				if (dwSize == 0)
-				{
-					break;
-				}
-				residue -= dwSize;
-				if (dwSize < inputChunkSize)
-				{
-					//the last chunk
-					zInput.size = dwSize;
-				}
-				zInput.pos = 0;
-				zInput.pos = 0;
-				while (zInput.pos < zInput.size)
-				{
-					zOutput.pos = 0;
-					ZSTD_decompressStream(dctx, &zOutput, &zInput);
-					WriteFile(ofHandle, outputChunkBuffer, zOutput.pos, NULL, NULL);
-				}
-			}
-
-			FlushFileBuffers(ofHandle);
-			CloseHandle(ifHandle);
-			CloseHandle(ofHandle);
-			ZSTD_freeDCtx(dctx);
-			delete[] inputChunkBuffer;
-			delete[] outputChunkBuffer;
 
 			return true;
 		}

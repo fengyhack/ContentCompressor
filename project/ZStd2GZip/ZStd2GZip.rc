@@ -68,12 +68,12 @@ BEGIN
         BLOCK "080404b0"
         BEGIN
             VALUE "CompanyName", "fengyhack"
-            VALUE "FileDescription", "ZStdExtract"
+            VALUE "FileDescription", "ZStd2GZip"
             VALUE "FileVersion", "1.0.0.1"
-            VALUE "InternalName", "ZExtract.exe"
+            VALUE "InternalName", "ZStd2GZip.exe"
             VALUE "LegalCopyright", "Copyright (C) 2021"
-            VALUE "OriginalFilename", "ZExtract.exe"
-            VALUE "ProductName", "ZStdExtract"
+            VALUE "OriginalFilename", "ZStd2GZip.exe"
+            VALUE "ProductName", "ZStd2GZip"
             VALUE "ProductVersion", "1.0.0.1"
         END
     END

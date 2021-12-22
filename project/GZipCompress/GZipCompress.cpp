@@ -1,5 +1,6 @@
 #include "Compressor.h"
 #include <string>
+#include <chrono>
 
 using namespace zio::compression;
 
@@ -20,7 +21,13 @@ int main(int argc, char** argv)
 	{
 		s2 = s2.substr(1, s2.length() - 2);
 	}
-
-	ZStdCompress(s1, s2);
+	double bpm;
+	double cpr;
+	GZipCompressProfile(s1, s2, bpm, cpr);
+	const double MPS = 1000.0 / (1 << 20);
+	printf("speed:%.3fMB/s, ratio:%.3f\n", bpm * MPS, cpr);
+#ifdef DEBUG
+	(void)getchar();
+#endif // DEBUG
 	return 0;
 }

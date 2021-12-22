@@ -21,6 +21,12 @@ int main(int argc, char** argv)
 		s2 = s2.substr(1, s2.length() - 2);
 	}
 
-	ZStd2Raw(s1, s2);
+	double bpm;
+	ZStdExtractProfile(s1, s2, bpm);
+	const double MPS = 1000.0 / (1 << 20);
+	printf("speed:%.3fMB/s\n", bpm * MPS);
+#ifdef DEBUG
+	(void)getchar();
+#endif // DEBUG
 	return 0;
 }
